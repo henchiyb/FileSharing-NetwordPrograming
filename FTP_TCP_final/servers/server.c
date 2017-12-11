@@ -84,13 +84,11 @@ void user_func(){
           printf("%s\n", send_file_message);
           sentBytes= send(connSock,send_file_message,2048,0);
           // sendFileToClient(mess.parameter[0]);
-        }
-
-        if (strcmp(mess.parameter[1]  , "start") == 0 &&
+        } else if (strcmp(mess.parameter[1]  , "start") == 0 &&
           strcmp(mess.parameter[0], "download") == 0){
-          printf("start download\n");
-          printf("File:  %s\n", fname);
           sendFileToClient(fname);
+          printf("test download\n");
+          printf("File:  %s\n", fname);
         }
       } else if (mess.code == 21){
         receiveFileUploadFromClient(mess.parameter[0], atoi(mess.parameter[1]));
@@ -98,6 +96,10 @@ void user_func(){
         strcpy(buff,"view|true");
         send(connSock, buff, 2048, 0);
         printf("View test");
+      } else if (mess.code == 24){
+        rename(mess.parameter[0], mess.parameter[1]);
+        strcpy(buff,"rename|true");
+        send(connSock, buff, 2048, 0);
       }
       break;
   }
@@ -188,8 +190,9 @@ char* loginServer(message message){
 int sendFileToClient(char* params){
   char* buffer = (char*)malloc(30*sizeof(char));
   FILE *fp = fopen(params,"rb");
+  printf("%s\n", params);
   if(fp == NULL){
-    // printf("File open error\n");
+    printf("File open error\n");
     // strcpy(buffer,"openfile|false");
     // sentBytes= send(connSock,buffer,1024,0);
     return 0;
