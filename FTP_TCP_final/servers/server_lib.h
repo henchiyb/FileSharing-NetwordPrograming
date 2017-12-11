@@ -11,7 +11,7 @@ void addUsers(char* name, char* password);
 void main_func();
 char* getPasswordByUsername( char* name);
 char* loginServer(message message);
-int sendFileToClient(char* fname);
+void* sendFileToClient(char* fname);
 
 int listenSock;
 int connSock;

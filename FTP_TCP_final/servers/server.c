@@ -84,9 +84,10 @@ void user_func(){
           printf("%s\n", send_file_message);
           sentBytes= send(connSock,send_file_message,2048,0);
           // sendFileToClient(mess.parameter[0]);
-        } else if (strcmp(mess.parameter[1]  , "start") == 0 &&
+        }
+        if (strcmp(mess.parameter[1]  , "start") == 0 &&
           strcmp(mess.parameter[0], "download") == 0){
-          sendFileToClient(fname);
+          // sendFileToClient(fname);
           printf("test download\n");
           printf("File:  %s\n", fname);
         }
@@ -124,14 +125,22 @@ void addUsers(char* name, char* password){
 
 void addFile(int shareType, char* username, char* filename){
   char buff[2048];
-  printf("Open");
   char* ex = (char*)malloc(2048*sizeof(char));
-  FILE* fptr = fopen("./servers/file_sharing.txt","a+t");
-  strcpy(buff,username);
-  strcpy(buff+strlen(buff),"|");
-  strcpy(buff+strlen(buff),filename);
-  strcpy(buff+strlen(buff),"|");
-  strcpy(buff+strlen(buff), shareType);
+  FILE* fptr = fopen("..//file_sharing.txt","a+t");
+  if (fptr == NULL){
+    printf("Open error\n");
+  } else {
+    printf("Open\n");
+  }
+
+  char c[1];
+  sprintf(c, "%d", shareType);
+  strcat(buff, c);
+  strcat(buff, "|");
+  strcat(buff,username);
+  strcat(buff,"|");
+  strcat(buff,filename);
+
   printf("%s", buff);
   while(!feof(fptr)){
     fgets(ex,2048,fptr);
@@ -187,7 +196,8 @@ char* loginServer(message message){
   return buff;
 }
 
-int sendFileToClient(char* params){
+void* sendFileToClient(char* params){
+  write(connSock, params,256);
   char* buffer = (char*)malloc(30*sizeof(char));
   FILE *fp = fopen(params,"rb");
   printf("%s\n", params);
@@ -198,8 +208,7 @@ int sendFileToClient(char* params){
     return 0;
   } else {
     printf("OPEN\n");
-
-    write(connSock, params,256);
+  }
     while(1){
       /* First read file in chunks of 256 bytes */
       unsigned char buff[1024]={0};
@@ -217,8 +226,6 @@ int sendFileToClient(char* params){
         break;
       }
     }
-    return 1;
-  }
 }
 
 void receiveFileUploadFromClient(char* params, int size){
@@ -254,7 +261,7 @@ void receiveFileUploadFromClient(char* params, int size){
   if(bytesReceived < 0){
     printf("\n Send Error \n");
   }
-  // addFile(1, username, fname);
+  addFile(1, username, params);
   printf("\nFile OK....Completed\n");
 }
 
