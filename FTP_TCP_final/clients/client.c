@@ -1,5 +1,6 @@
 #include "client_lib.h"
 #define PORT 5000
+
 void main(){
   char temp[256];
   sockfd = socket(AF_INET,SOCK_STREAM,0);
@@ -47,8 +48,7 @@ void verifyUser(){
 }
 
 void fileControl(){
-  char* buff = (char*)malloc(sizeof(char));
-  do{
+    char* buff = (char*)malloc(sizeof(char));
     int choice;
     choice = menuFileControl();
     char c;
@@ -59,54 +59,57 @@ void fileControl(){
         FILE *fp = fopen(fname,"rb");
         if(fp==NULL){
           printf("File not found!\n");
-          // recv(sockfd, buff, 2048, 0);
-          // message* messUpload;
-          // separate_message(buff, messUpload);
         } else {
           printf("File open\n");
           fclose(fp);
-          char * upload_message = create_message(21,fname,NULL);
+          struct stat st;
+          stat(fname, &st);
+          int size = st.st_size;
+          printf("%d\n", size);
+          char str[10];
+          sprintf(str, "%d", size);
+          char * upload_message = create_message(21,fname,str);
+
           send(sockfd,upload_message,strlen(upload_message),0);
-          err = pthread_create(&tid, NULL, uploadFileToServer(fname), &sockfd);
+          uploadFileToServer(fname);
           printf("%s\n", upload_message);
         }
         break;
       case 2:
         printf("\nFilename to download:");
         gets(fname);
-        char * download_message = create_message(23,fname,NULL);
+        char * buffer[2048];
+        char * download_message = create_message(23,"fname",fname);
         send(sockfd,download_message,strlen(download_message),0);
-        // while((reciveBytes = recv(sockfd,buff,2048,0))){
-        //   buff[reciveBytes]='\0';
-        //   char* str;
-        //   message mess;
-        //   separate_message(buff,&mess);
-        //   if(mess.code == 23){
-        //     char* str = mess.parameter[0];
-        //     if (strcmp(str, "File not found!") == 0){
-        //       printf("File not found!");
-        //     } else {
-        //       receiveFileFromServer();
-        //     }
-        //   }
-        //   break;
-        // }
-        // recv(sockfd, buff, 2048, 0);
-        // message* messDownload;
-        // separate_message(buff, messDownload);
-        // if (strcmp(buff, "File not found!|NULL") == 0){
-        //   printf("File not found!\n");
+        printf("%s\n", download_message);
+        recv(sockfd, buffer ,2048, 0);
+        message mess;
+        separate_message(buffer, &mess);
+        if (strcmp(mess.parameter[0], "fname") == 0){
+          char * download_start = create_message(23,"download","start");
+          send(sockfd,download_start,strlen(download_start),0);
+          printf("test: %s\n", fname);
+          receiveFileFromServer(fname, atoi(mess.parameter[1]));
+        }
+        // if (strcmp(buff, "openfile|false")){
+        //     printf("Download error\n");
         // } else {
-        //   printf("%s\n", download_message);
+          // message mess;
+          // separate_message(buff, &mess);
         // }
-        receiveFileFromServer();
         break;
       case 3:
+        strcpy(buff, "view|true");
+        char * view_message = create_message(22, buff, NULL);
+        send(sockfd,view_message,strlen(view_message),0);
+        recv(sockfd,buff,2048,0);
+        break;
+      case 4:
         exit(0);
       default:
       printf("\nWrong input!");
     }
-  }while(1);
+  fileControl();
 }
 
 int menuVerifyUser(){
@@ -114,7 +117,7 @@ int menuVerifyUser(){
   printf("\n\t*************************\n");
   printf("\t*      VERIFY USER      *\n");
   printf("\t*************************\n");
-  printf("\t* 1. Sign up             *\n");
+  printf("\t* 1. Sign up            *\n");
   printf("\t* 2. Login              *\n");
   printf("\t* 3. Exit               *\n");
   printf("\t*************************\n");
@@ -135,12 +138,15 @@ int menuFileControl(){
   printf("\t*************************\n");
   printf("\t* 1. Upload             *\n");
   printf("\t* 2. Download           *\n");
-  printf("\t* 3. Exit               *\n");
+  printf("\t* 3. View               *\n");
+  printf("\t* 4. Share              *\n");
+  printf("\t* 5. Download           *\n");
+  printf("\t* 6. Exit               *\n");
   printf("\t*************************\n");
   printf("\t---> choice: ");
   scanf("%d%*c", &choice);
   while(choice!=1 && choice!=2 && choice!=3){
-    printf("Your choice is invalid. Please choice from 1 to 3.\n");
+    printf("Your choice is invalid. Please choice from 1 to 6.\n");
     printf("\t---> choice: ");
     scanf("%d%*c",&choice);
   }
@@ -200,53 +206,56 @@ int loginClient(){
       return is_login;
 }
 
-void receiveFileFromServer(){
+void receiveFileFromServer(char* params, int size){
   int bytesReceived = 0;
   char recvBuff[1024];
   memset(recvBuff, '0', sizeof(recvBuff));
-  read(sockfd, fname, 256);
-  printf("File Name: %s\n",fname);
+  read(sockfd, params, 256);
+  printf("File Name: %s\n",params);
+  printf("File size: %d\n",size);
+
   printf("Receiving file...");
 /* Create file where data will be stored */
   FILE *fp;
-  fp = fopen(fname, "ab");
+  fp = fopen(params, "ab");
   if(NULL == fp){
     printf("Error opening file");
     return 1;
+  } else {
+    printf("Opened\n");
   }
-  long double sz=1;
+  long int sz=1;
    // Receive data in chunks of 256 bytes
-  while((bytesReceived = read(sockfd, recvBuff, 1024)) > 0){
-    sz++;
-    // printf("\nReceived: %llf Mb",(sz/100));
-    // fflush(stdout);
+  while(sz < size){
+    bytesReceived = read(sockfd, recvBuff, 1024);
+    sz+=1024;
+    printf("%d\n", sz);
     fwrite(recvBuff, 1,bytesReceived,fp);
   }
   if(bytesReceived < 0){
     printf("\n Send Error \n");
   }
   printf("\nFile OK....Completed\n");
-  // return 0;
+  return 0;
 }
 
-void* uploadFileToServer(char* fname){
-  write(sockfd, fname,256);
+void* uploadFileToServer(char* params){
+  write(sockfd, params,256);
   char* path;
-  // asprintf(&path,"%s/%s", username, fname);
-  // printf("path: %s\n", path);
-  FILE *fp = fopen(fname,"rb");
+  asprintf(&path,"%s/%s", username, params);
+  printf("path: %s\n", path);
+  FILE *fp = fopen(params,"rb");
   if(fp==NULL){
     printf("File not found!\n");
     return 1;
   } else {
     printf("File open\n");
   }
-
+  int size;
     while(1){
       /* First read file in chunks of 256 bytes */
       unsigned char buff[1024]={0};
       int nread = fread(buff,1,1024,fp);
-      /* If read was success, send data. */
       if(nread > 0){
         write(sockfd, buff, nread);
       }

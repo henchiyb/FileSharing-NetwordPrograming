@@ -8,7 +8,7 @@ void signupClient();
 int menuVerifyUser();
 void verifyUser();
 void receiveFileFromServer();
-void* uploadFileToServer(char* fname);
+void* uploadFileToServer(char* params);
 
 int reciveBytes;
 int sentBytes;

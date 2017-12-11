@@ -3,11 +3,6 @@ typedef struct{
   char *parameter[2];
 } message;
 
-typedef struct{
-  int connFd;
-  char* filename;
-} info;
-
 char* create_message(int messageCode, char* para0, char* para1){
   char* buff;
   if(para1!= NULL & para0!= NULL)

@@ -6,6 +6,8 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <pthread.h>
+#include <sys/stat.h>
 #include "helper.c"
 
 char* create_message(int messageCode, char* para0, char* para1);

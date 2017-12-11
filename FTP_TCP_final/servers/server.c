@@ -50,7 +50,6 @@ void main_func(){
       separate_message(buff,&mess);
       if(mess.code == 2){
         strcpy(cmt,loginServer(mess));
-        //err = pthread_create(&tid, NULL, sendFileToClient(fname), &connSock);
       }
       else if(mess.code == 1){
         signupServer(mess);
@@ -68,19 +67,41 @@ void user_func(){
   while((reciveBytes = recv(connSock,buff,2048,0))){
       buff[reciveBytes]='\0';
       char* str;
+      char* fname;
       message mess;
       separate_message(buff,&mess);
       if(mess.code == 23){
-            printf("%s\n", username);
-            asprintf(&str, "%s/%s", username, "Mars4_5.jar");
-            err = pthread_create(&tid, NULL, sendFileToClient(str), &connSock);
-            if (err != 0)
-            printf("\ncan't create thread :[%s]", strerror(err));
+        printf("%s %s\n", mess.parameter[0], mess.parameter[1]);
+        if(strcmp(mess.parameter[0], "fname") == 0){
+          printf("Alo\n");
+          struct stat st;
+          fname = mess.parameter[1];
+          stat(mess.parameter[1], &st);
+          int size = st.st_size;
+          char str[10];
+          sprintf(str, "%d", size);
+          char * send_file_message = create_message(23, mess.parameter[0], str);
+          printf("%s\n", send_file_message);
+          sentBytes= send(connSock,send_file_message,2048,0);
+          // sendFileToClient(mess.parameter[0]);
+        }
+
+        if (strcmp(mess.parameter[1]  , "start") == 0 &&
+          strcmp(mess.parameter[0], "download") == 0){
+          printf("start download\n");
+          printf("File:  %s\n", fname);
+          sendFileToClient(fname);
+        }
       } else if (mess.code == 21){
-            receiveFileUploadFromClient(mess.parameter[0]);
+        receiveFileUploadFromClient(mess.parameter[0], atoi(mess.parameter[1]));
+      } else if (mess.code == 22){
+        strcpy(buff,"view|true");
+        send(connSock, buff, 2048, 0);
+        printf("View test");
       }
       break;
   }
+  user_func();
 }
 
 void addUsers(char* name, char* password){
@@ -99,9 +120,27 @@ void addUsers(char* name, char* password){
   mkdir(name, 0777);
 }
 
+void addFile(int shareType, char* username, char* filename){
+  char buff[2048];
+  printf("Open");
+  char* ex = (char*)malloc(2048*sizeof(char));
+  FILE* fptr = fopen("./servers/file_sharing.txt","a+t");
+  strcpy(buff,username);
+  strcpy(buff+strlen(buff),"|");
+  strcpy(buff+strlen(buff),filename);
+  strcpy(buff+strlen(buff),"|");
+  strcpy(buff+strlen(buff), shareType);
+  printf("%s", buff);
+  while(!feof(fptr)){
+    fgets(ex,2048,fptr);
+  }
+  fprintf(fptr,"%s\n",buff);
+  fclose(fptr);
+}
+
 void signupServer(message message){
   char* password = getPasswordByUsername(message.parameter[0]);
-  char buff[30],*system_mess;
+  char buff[30];
   if(password == NULL){
     strcpy(buff,"signup|true");
     addUsers(message.parameter[0],message.parameter[1]);
@@ -110,7 +149,6 @@ void signupServer(message message){
     printf("signup false\n");
   }
   sentBytes= send(connSock,buff,1024,0);
-  printf("test send\n");
 }
 
 char* getPasswordByUsername( char* name){
@@ -147,27 +185,23 @@ char* loginServer(message message){
   return buff;
 }
 
-void* sendFileToClient(char* fname){
-  write(connSock, fname,256);
-  char* path;
-  //asprintf(&path,"%s/%s",username,fname);
+int sendFileToClient(char* params){
+  char* buffer = (char*)malloc(30*sizeof(char));
+  FILE *fp = fopen(params,"rb");
+  if(fp == NULL){
+    // printf("File open error\n");
+    // strcpy(buffer,"openfile|false");
+    // sentBytes= send(connSock,buffer,1024,0);
+    return 0;
+  } else {
+    printf("OPEN\n");
 
-  printf("%s\n", path);
-  printf("%s\n", fname);
-  FILE *fp = fopen(fname,"rb");
-    if(fp==NULL){
-      printf("File opern error");
-      return 1;
-    }
-/* Read data from file and send it */
+    write(connSock, params,256);
     while(1){
       /* First read file in chunks of 256 bytes */
       unsigned char buff[1024]={0};
-      int nread = fread(buff,1,1024,fp);
-      //printf("Bytes read %d \n", nread);
-      /* If read was success, send data. */
+      int nread = fread(buff, 1, 1024, fp);
       if(nread > 0){
-        //printf("Sending \n");
         write(connSock, buff, nread);
       }
       if (nread < 1024){
@@ -180,34 +214,44 @@ void* sendFileToClient(char* fname){
         break;
       }
     }
+    return 1;
+  }
 }
 
-void receiveFileUploadFromClient(char* fname){
+void receiveFileUploadFromClient(char* params, int size){
   int bytesReceived = 0;
   char recvBuff[1024];
   memset(recvBuff, '0', sizeof(recvBuff));
-  read(connSock, fname, 256);
-  printf("File Name: %s\n",fname);
+  read(connSock, params, 256);
+  printf("File Name: %s\n",params);
   printf("Receiving file...");
-/* Create file where data will be stored */
+
   FILE *fp;
-  fp = fopen(fname, "ab");
+  fp = fopen(params, "ab");
   if(NULL == fp){
     printf("Error opening file");
     return 1;
+  } else {
+        printf("Opened file");
   }
-  long double sz=1;
-   // Receive data in chunks of 256 bytes
-  while((bytesReceived = read(connSock, recvBuff, 1024)) > 0){
-    sz++;
-    // printf("\nReceived: %llf Mb",(sz/100));
-    // fflush(stdout);
+  // while((bytesReceived = read(connSock, recvBuff, 1024)) > 0){
+  // //   sz++;
+  //   fwrite(recvBuff, 1,bytesReceived,fp);
+  // }
+  long int sz = 1;
+  printf("%d\n", size);
+  while(sz < size){
+    bytesReceived = read(connSock, recvBuff, 1024);
+    sz+=1024;
+    printf("%d\n", sz);
     fwrite(recvBuff, 1,bytesReceived,fp);
   }
+  printf("%d\n", bytesReceived);
+
   if(bytesReceived < 0){
     printf("\n Send Error \n");
   }
+  // addFile(1, username, fname);
   printf("\nFile OK....Completed\n");
-  // return 0;
 }
 
