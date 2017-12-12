@@ -9,6 +9,7 @@ int menuVerifyUser();
 void verifyUser();
 void receiveFileFromServer();
 void* uploadFileToServer(char* params);
+char* create_new_filename(char* filename, int i);
 
 int reciveBytes;
 int sentBytes;

@@ -150,6 +150,38 @@ void fileControl(){
         }
         break;
       case 6:
+        break;
+      case 7:
+        printf("\nFilename to download: ");
+        gets(fname);
+        char user_has_file[2048];
+        printf("\nUser has file: ");
+        gets(user_has_file);
+        char * download_share_message = create_message(26,user_has_file,fname);
+        send(sockfd, download_share_message, strlen(download_share_message),0);
+        printf("%s\n", download_share_message);
+        char buff_share[2048];
+        recv(sockfd, buff_share ,2048, 0);
+        printf("%s\n", buff_share);
+        message mess_share;
+        printf("Chay 2\n");
+        separate_message(buff_share, &mess_share);
+        if (strcmp(mess_share.parameter[0], "fname") == 0){
+          int size = atoi(mess_share.parameter[1]);
+          printf("Test file size %d\n", size);
+          char * download_start = create_message(26,"download","ready");
+          send(sockfd,download_start,strlen(download_start),0);
+          printf("test: %s\n", fname);
+          recv(sockfd, buffer ,2048, 0);
+          if (strcmp(buffer, "26|download|start|")){
+            printf("Download start\n");
+            receiveFileFromServer(fname, size);
+          }
+        } else if (strcmp(buffer, "26|download|not_exist|") == 0){
+          printf("File download not exist\n");
+        }
+        break;
+      case 8:
         exit(0);
       default:
         printf("\nWrong input!");
@@ -206,13 +238,15 @@ int menuFileControl(){
   printf("\t* 3. View               *\n");
   printf("\t* 4. Rename             *\n");
   printf("\t* 5. Share              *\n");
-  printf("\t* 6. Exit               *\n");
+  printf("\t* 6. Rename share       *\n");
+  printf("\t* 7. Download share     *\n");
+  printf("\t* 8. Exit               *\n");
   printf("\t*************************\n");
   printf("\t---> choice: ");
   scanf("%d%*c", &choice);
   while(choice!=1 && choice!=2 && choice!=3 && choice!=4 && choice!=5
-    && choice!=6){
-    printf("Your choice is invalid. Please choice from 1 to 6.\n");
+    && choice!=6 && choice!=7 && choice!=8){
+    printf("Your choice is invalid. Please choice from 1 to 8.\n");
     printf("\t---> choice: ");
     scanf("%d%*c",&choice);
   }
@@ -280,16 +314,27 @@ void receiveFileFromServer(char* params, int size){
   printf("File Name: %s\n",params);
   printf("File size: %d\n",size);
 
-  printf("Receiving file...");
+  char newname[2048];
+  strcpy(newname, params);
+  printf("%s\n", newname);
+  int i = 0;
+  while(file_exist(newname)){
+    i++;
+    char* tmp;
+    asprintf(&tmp, "%s (%d)", params, i);
+    strcpy(newname, tmp);
+  }
+
 /* Create file where data will be stored */
   FILE *fp;
-  fp = fopen(params, "ab");
+  fp = fopen(newname, "ab");
   if(NULL == fp){
-    printf("Error opening file");
+    printf("Error opening file\n");
     return 0;
   } else {
     printf("Opened\n");
   }
+  printf("Receiving file...\n");
   long int sz=1;
    // Receive data in chunks of 256 bytes
   while(sz < size){
@@ -334,6 +379,12 @@ void* uploadFileToServer(char* params){
         break;
       }
     }
+}
+
+int file_exist (char *filename)
+{
+  struct stat   buffer;
+  return (stat (filename, &buffer) == 0);
 }
 
 
