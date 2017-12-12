@@ -105,10 +105,19 @@ void fileControl(){
         }
         break;
       case 3:
-        strcpy(buff, "view|true");
-        char * view_message = create_message(22, buff, NULL);
-        send(sockfd,view_message,strlen(view_message),0);
-        recv(sockfd,buff,2048,0);
+        printf("View\n");
+        char * view_ready = create_message(22,"view","ready");
+        send(sockfd,view_ready,strlen(view_ready),0);
+        recv(sockfd, buff, 2048, 0);
+        printf("%s\n", buff);
+        message mess_view;
+        separate_message(buff, &mess_view);
+        if (strcmp(mess_view.parameter[0], "view") == 0){
+          printf("All file in server: \n");
+          printf("%s\n", mess_view.parameter[1]);
+        } else {
+          printf("View false\n");
+        }
         break;
       case 4:
         printf("\nFilename to rename: ");
@@ -121,12 +130,30 @@ void fileControl(){
         recv(sockfd,buff,2048,0);
         if (strcmp(buff, "rename|true") == 0){
           printf("Rename success!\n");
+        } else {
+          printf("Rename failed!\n");
+        }
+        break;
+      case 5:
+        printf("\nFilename to change share: ");
+        gets(fname);
+        int shareType = menuSelectShareType();
+        char str[1];
+        sprintf(str, "%d", shareType);
+        char * change_share_message = create_message(25, fname, str);
+        send(sockfd,change_share_message,strlen(change_share_message),0);
+        recv(sockfd,buff,2048,0);
+        if (strcmp(buff, "share|true") == 0){
+          printf("Share success!\n");
+        } else {
+          printf("Share failed!\n");
         }
         break;
       case 6:
         exit(0);
       default:
         printf("\nWrong input!");
+        break;
     }
   fileControl();
 }
@@ -139,6 +166,25 @@ int menuVerifyUser(){
   printf("\t* 1. Sign up            *\n");
   printf("\t* 2. Login              *\n");
   printf("\t* 3. Exit               *\n");
+  printf("\t*************************\n");
+  printf("\t---> choice: ");
+  scanf("%d%*c", &choice);
+  while(choice!=1 && choice!=2 && choice!=3){
+    printf("Your choice is invalid. Please choice from 1 to 3.\n");
+    printf("\t---> choice: ");
+    scanf("%d%*c",&choice);
+  }
+  return choice;
+}
+
+int menuSelectShareType(){
+  int choice;
+  printf("\n\t*************************\n");
+  printf("\t*      Share Type       *\n");
+  printf("\t*************************\n");
+  printf("\t* 1. Private            *\n");
+  printf("\t* 2. Rename             *\n");
+  printf("\t* 3. Download           *\n");
   printf("\t*************************\n");
   printf("\t---> choice: ");
   scanf("%d%*c", &choice);
