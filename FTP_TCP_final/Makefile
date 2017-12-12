@@ -3,6 +3,7 @@ all: clients/client servers/server
 	g++ -std=c++11 $< -w -o $@
 
 %: %.c
-	gcc $< -w -o $@ -pthread
+	gcc $< -w -o $@ -pthread `mysql_config --cflags --libs`
+
 clean:
 	rm -f clients/client servers/server

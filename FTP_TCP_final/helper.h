@@ -8,6 +8,8 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <sys/stat.h>
+#include <my_global.h>
+#include <mysql.h>
 #include "helper.c"
 
 char* create_message(int messageCode, char* para0, char* para1);
