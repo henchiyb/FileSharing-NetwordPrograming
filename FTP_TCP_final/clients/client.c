@@ -48,13 +48,13 @@ void verifyUser(){
 }
 
 void fileControl(){
-    char* buff = (char*)malloc(sizeof(char));
+    // char* buff = (char*)malloc(sizeof(char));
     int choice;
     choice = menuFileControl();
     char c;
     switch(choice){
       case 1:
-        printf("\nFilename to upload:");
+        printf("\nFilename to upload: ");
         gets(fname);
         FILE *fp = fopen(fname,"rb");
         if(fp==NULL){
@@ -69,34 +69,40 @@ void fileControl(){
           char str[10];
           sprintf(str, "%d", size);
           char * upload_message = create_message(21,fname,str);
-
           send(sockfd,upload_message,strlen(upload_message),0);
-          uploadFileToServer(fname);
-          printf("%s\n", upload_message);
+          char * buffer[2048];
+          recv(sockfd, buffer, 2048, 0);
+          if (strcmp(buffer, "upload|exist") == 0)
+            printf("File exist! please rename\n");
+          else if (strcmp(buffer, "upload|start") == 0)
+            uploadFileToServer(fname);
         }
         break;
       case 2:
-        printf("\nFilename to download:");
+        printf("\nFilename to download: ");
         gets(fname);
         char * buffer[2048];
         char * download_message = create_message(23,"fname",fname);
         send(sockfd,download_message,strlen(download_message),0);
         printf("%s\n", download_message);
         recv(sockfd, buffer ,2048, 0);
+        printf("%s\n", buffer);
         message mess;
         separate_message(buffer, &mess);
         if (strcmp(mess.parameter[0], "fname") == 0){
-          char * download_start = create_message(23,"download","start");
+          int size = atoi(mess.parameter[1]);
+          printf("Test file size %d\n", size);
+          char * download_start = create_message(23,"download","ready");
           send(sockfd,download_start,strlen(download_start),0);
           printf("test: %s\n", fname);
-          receiveFileFromServer(fname, atoi(mess.parameter[1]));
+          recv(sockfd, buffer ,2048, 0);
+          if (strcmp(buffer, "23|download|start|")){
+            printf("Download start\n");
+            receiveFileFromServer(fname, size);
+          }
+        } else if (strcmp(buffer, "23|download|not_exist|") == 0){
+          printf("File download not exist\n");
         }
-        // if (strcmp(buff, "openfile|false")){
-        //     printf("Download error\n");
-        // } else {
-          // message mess;
-          // separate_message(buff, &mess);
-        // }
         break;
       case 3:
         strcpy(buff, "view|true");
@@ -105,9 +111,22 @@ void fileControl(){
         recv(sockfd,buff,2048,0);
         break;
       case 4:
+        printf("\nFilename to rename: ");
+        gets(fname);
+        char newname[2048];
+        printf("\nNew name: ");
+        gets(newname);
+        char * rename_message = create_message(24, fname, newname);
+        send(sockfd,rename_message,strlen(rename_message),0);
+        recv(sockfd,buff,2048,0);
+        if (strcmp(buff, "rename|true") == 0){
+          printf("Rename success!\n");
+        }
+        break;
+      case 6:
         exit(0);
       default:
-      printf("\nWrong input!");
+        printf("\nWrong input!");
     }
   fileControl();
 }
@@ -139,13 +158,14 @@ int menuFileControl(){
   printf("\t* 1. Upload             *\n");
   printf("\t* 2. Download           *\n");
   printf("\t* 3. View               *\n");
-  printf("\t* 4. Share              *\n");
-  printf("\t* 5. Download           *\n");
+  printf("\t* 4. Rename             *\n");
+  printf("\t* 5. Share              *\n");
   printf("\t* 6. Exit               *\n");
   printf("\t*************************\n");
   printf("\t---> choice: ");
   scanf("%d%*c", &choice);
-  while(choice!=1 && choice!=2 && choice!=3){
+  while(choice!=1 && choice!=2 && choice!=3 && choice!=4 && choice!=5
+    && choice!=6){
     printf("Your choice is invalid. Please choice from 1 to 6.\n");
     printf("\t---> choice: ");
     scanf("%d%*c",&choice);
@@ -220,7 +240,7 @@ void receiveFileFromServer(char* params, int size){
   fp = fopen(params, "ab");
   if(NULL == fp){
     printf("Error opening file");
-    return 1;
+    return 0;
   } else {
     printf("Opened\n");
   }
@@ -236,7 +256,6 @@ void receiveFileFromServer(char* params, int size){
     printf("\n Send Error \n");
   }
   printf("\nFile OK....Completed\n");
-  return 0;
 }
 
 void* uploadFileToServer(char* params){
