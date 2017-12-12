@@ -121,6 +121,32 @@ void user_func(){
       } else if (mess.code == 26){
         downloadFileShare(mess.parameter[0], mess.parameter[1]);
         printf("Share down: %s - %s\n", mess.parameter[0], mess.parameter[1]);
+      } else if (mess.code == 27){
+        char* listFile = getFileByShareType(2);
+        printf("%s\n", listFile);
+        char* view_rename = create_message(27, "view", listFile);
+        send(connSock, view_rename, strlen(view_rename), 0);
+        printf("View test: %s", view_rename);
+      } else if (mess.code == 28){
+        char* listFile = getFileByShareType(3);
+        printf("%s\n", listFile);
+        char* view_download = create_message(28, "view", listFile);
+        send(connSock, view_download, strlen(view_download), 0);
+        printf("View test: %s", view_download);
+      } else if (mess.code == 29){
+        char *token;
+        char *token1;
+        char *search = " ";
+        // printf("%s\n", mess.parameter[1]);
+        // Token will point to "SEVERAL".
+        token = strtok(mess.parameter[1], search);
+        // Token will point to "WORDS".
+        token1 = strtok(NULL, search);
+        printf("token %s %s\n", token, token1);
+        updateFilenameShare(mess.parameter[0], token, token1);
+
+        strcpy(buff,"rename|newname");
+        send(connSock, buff, 2048, 0);
       }
       break;
   }
@@ -292,16 +318,23 @@ void updateShareType(char* filename, int shareType){
 
 void updateFilename(char* oldname, char* newname){
   char* query;
-  asprintf(&query,"SELECT * FROM users WHERE username = '%s'", username);
-  mysql_query(con, query);
-  MYSQL_RES *result = mysql_store_result(con);
-  MYSQL_ROW row;
-  row = mysql_fetch_row(result);
   asprintf(&query, "UPDATE files SET filename = '%s' WHERE filename = '%s'",
     newname, oldname);
   mysql_query(con, query);
   rename(oldname, newname);
-  mysql_free_result(result);
+}
+
+void updateFilenameShare(char* user_name, char* oldname, char* newname){
+  char* query;
+  char* old_name_path;
+  char* new_name_path;
+  asprintf(&old_name_path,"..//%s//%s", user_name, oldname);
+  asprintf(&new_name_path,"..//%s//%s", user_name, newname);
+
+  asprintf(&query, "UPDATE files SET filename = '%s' WHERE filename = '%s'",
+    newname, oldname);
+  mysql_query(con, query);
+  rename(old_name_path, new_name_path);
 }
 
 char* getAllFilelOfUser(){
@@ -313,6 +346,24 @@ char* getAllFilelOfUser(){
   MYSQL_RES *result = mysql_store_result(con);
   MYSQL_ROW row;
   printf("Chay\n");
+  while((row = mysql_fetch_row(result))){
+    char* str;
+    asprintf(&str, " User: %s --- Filename: %s --- Share_type: %s \n",
+    row[0], row[1], row[2]);
+    asprintf(&listFile, "%s %s", listFile, str);
+  }
+  mysql_free_result(result);
+  return listFile;
+}
+
+char* getFileByShareType(int shareType){
+  char* listFile = "";
+  char* query;
+  asprintf(&query, "SELECT u.username, f.filename, f.share_type FROM users u JOIN files f WHERE f.share_type = %d AND u.user_id = f.user_id",
+    shareType);
+  mysql_query(con, query);
+  MYSQL_RES *result = mysql_store_result(con);
+  MYSQL_ROW row;
   while((row = mysql_fetch_row(result))){
     char* str;
     asprintf(&str, " User: %s --- Filename: %s --- Share_type: %s \n",

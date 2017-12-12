@@ -15,6 +15,7 @@ void* sendFileToClient(char* username, char* fname);
 void showErrorMessage(MYSQL* con);
 void connectMysql();
 char* getAllFilelOfUser();
+char* getFileByShareType(int shareType);
 
 int listenSock;
 int connSock;
