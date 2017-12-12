@@ -25,6 +25,7 @@ void main(){
   }
   listen(listenSock,10);
   clientAddrLength = sizeof(clientAddr);
+  connectMysql();
   while(1){
     connSock = accept(listenSock,(sockaddr *)&clientAddr,(socklen_t*)&clientAddrLength);
     if(connSock<0) {printf("ERROR: error in accept()\n");exit(0);}
@@ -38,6 +39,7 @@ void main(){
     signal(SIGCHLD,sig_chld);
     close(connSock);
   }
+  mysql_close(con);
   close(listenSock);
 }
 
@@ -64,43 +66,61 @@ void main_func(){
 }
 
 void user_func(){
+  char* fname;
   while((reciveBytes = recv(connSock,buff,2048,0))){
       buff[reciveBytes]='\0';
       char* str;
-      char* fname;
       message mess;
       separate_message(buff,&mess);
       if(mess.code == 23){
-        printf("%s %s\n", mess.parameter[0], mess.parameter[1]);
         if(strcmp(mess.parameter[0], "fname") == 0){
           printf("Alo\n");
           struct stat st;
           fname = mess.parameter[1];
-          stat(mess.parameter[1], &st);
-          int size = st.st_size;
-          char str[10];
-          sprintf(str, "%d", size);
-          char * send_file_message = create_message(23, mess.parameter[0], str);
-          printf("%s\n", send_file_message);
-          sentBytes= send(connSock,send_file_message,2048,0);
-          // sendFileToClient(mess.parameter[0]);
-        }
-        if (strcmp(mess.parameter[1]  , "start") == 0 &&
-          strcmp(mess.parameter[0], "download") == 0){
-          // sendFileToClient(fname);
-          printf("test download\n");
-          printf("File:  %s\n", fname);
+          char buffer[2048];
+          if (!file_exist(fname)){
+            strcpy(buffer, "23|download|not_exist|");
+            send(connSock, buffer, 2048, 0);
+            printf("%s\n", buffer);
+          } else {
+            stat(fname, &st);
+            int size = st.st_size;
+            printf("test size%d\n", size);
+            char str[10];
+            sprintf(str, "%d", size);
+            char * send_file_message = create_message(23, mess.parameter[0], str);
+            printf("%s\n", send_file_message);
+            sentBytes= send(connSock,send_file_message,2048,0);
+            recv(connSock, buffer, 2048, 0);
+            if (strcmp(buffer, "23|download|ready|") == 0){
+              char buffer_start[2048];
+              strcpy(buffer_start, "23|download|start|");
+              sentBytes= send(connSock,buffer,2048,0);
+              printf("Test down: %s\n", fname);
+              sendFileToClient(username, fname);
+              printf("test download\n");
+            }
+          }
         }
       } else if (mess.code == 21){
         receiveFileUploadFromClient(mess.parameter[0], atoi(mess.parameter[1]));
       } else if (mess.code == 22){
-        strcpy(buff,"view|true");
-        send(connSock, buff, 2048, 0);
-        printf("View test");
+        char* listFile = getAllFilelOfUser();
+        printf("%s\n", listFile);
+        char* view_all_message = create_message(22, "view", listFile);
+        send(connSock, view_all_message, strlen(view_all_message), 0);
+        printf("View test: %s", view_all_message);
       } else if (mess.code == 24){
-        rename(mess.parameter[0], mess.parameter[1]);
+        updateFilename(mess.parameter[0], mess.parameter[1]);
         strcpy(buff,"rename|true");
         send(connSock, buff, 2048, 0);
+      } else if (mess.code == 25){
+        updateShareType(mess.parameter[0], atoi(mess.parameter[1]));
+        strcpy(buff,"share|true");
+        send(connSock, buff, 2048, 0);
+      } else if (mess.code == 26){
+        downloadFileShare(mess.parameter[0], mess.parameter[1]);
+        printf("Share down: %s - %s\n", mess.parameter[0], mess.parameter[1]);
       }
       break;
   }
@@ -108,83 +128,66 @@ void user_func(){
 }
 
 void addUsers(char* name, char* password){
-  char buff[81];
-  char* ex = (char*)malloc(81*sizeof(char));
-  FILE* fptr = fopen("verifylogin.txt","a+t");
-  strcpy(buff,name);
-  strcpy(buff+strlen(buff),"|");
-  strcpy(buff+strlen(buff),password);
-  printf("%s", buff);
-  while(!feof(fptr)){
-    fgets(ex,81,fptr);
-  }
-  fprintf(fptr,"%s\n",buff);
-  fclose(fptr);
+  char* query;
+  asprintf(&query,"INSERT INTO users(username, password) VALUES('%s','%s')",
+    name, password);
+  mysql_query(con, query);
   mkdir(name, 0777);
 }
 
 void addFile(int shareType, char* username, char* filename){
-  char buff[2048];
-  char* ex = (char*)malloc(2048*sizeof(char));
-  FILE* fptr = fopen("..//file_sharing.txt","a+t");
-  if (fptr == NULL){
-    printf("Open error\n");
-  } else {
-    printf("Open\n");
-  }
+  char* query;
+  asprintf(&query,"SELECT * FROM users WHERE username = '%s'", username);
+  mysql_query(con, query);
+  MYSQL_RES *result = mysql_store_result(con);
 
-  char c[1];
-  sprintf(c, "%d", shareType);
-  strcat(buff, c);
-  strcat(buff, "|");
-  strcat(buff,username);
-  strcat(buff,"|");
-  strcat(buff,filename);
-
-  printf("%s", buff);
-  while(!feof(fptr)){
-    fgets(ex,2048,fptr);
-  }
-  fprintf(fptr,"%s\n",buff);
-  fclose(fptr);
+  MYSQL_ROW row;
+  row = mysql_fetch_row(result);
+  asprintf(&query, "INSERT INTO files(filename, share_type, user_id) VALUES('%s',%d ,%d)",
+    filename, shareType, atoi(row[0]));
+  mysql_query(con, query);
 }
 
 void signupServer(message message){
-  char* password = getPasswordByUsername(message.parameter[0]);
-  char buff[30];
-  if(password == NULL){
+  char* query;
+  asprintf(&query,"SELECT * FROM users WHERE username = '%s' AND password = '%s'",
+    message.parameter[0], message.parameter[1]);
+  mysql_query(con, query);
+  MYSQL_RES *result = mysql_store_result(con);
+  int num_fields = mysql_num_fields(result);
+
+  MYSQL_ROW row;
+  MYSQL_FIELD *field;
+
+  if ((row = mysql_fetch_row(result)) == NULL)
+  {
     strcpy(buff,"signup|true");
     addUsers(message.parameter[0],message.parameter[1]);
-  }else {
+  } else{
     strcpy(buff,"signup|false");
     printf("signup false\n");
   }
   sentBytes= send(connSock,buff,1024,0);
-}
-
-char* getPasswordByUsername( char* name){
-  FILE* file = fopen("verifylogin.txt","r");
-  char user_name[30];
-  char* password = (char*)malloc(81*sizeof(char));
-  while(!feof(file)){
-    fscanf(file, "%[^\|]|%[^\n]\n", user_name, password);
-    if(strcmp(name,user_name)==0){
-      fclose(file);
-      return password;
-    }
-  }
-  return NULL;
+  mysql_free_result(result);
 }
 
 char* loginServer(message message){
-  char* password = getPasswordByUsername( message.parameter[0]);
-  char* buff = (char*)malloc(30*sizeof(char));
-  if(password == NULL||strcmp(message.parameter[1],password)!=0)
-    strcpy(buff,"login|false");
-  else{
+  char* query;
+  asprintf(&query,"SELECT * FROM users WHERE username = '%s' AND password = '%s'",
+    message.parameter[0], message.parameter[1]);
+  mysql_query(con, query);
+  MYSQL_RES *result = mysql_store_result(con);
+  int num_fields = mysql_num_fields(result);
+
+  MYSQL_ROW row;
+  MYSQL_FIELD *field;
+
+  if ((row = mysql_fetch_row(result)) == NULL)
+  {
+      strcpy(buff,"login|false");
+  } else{
     strcpy(buff,"login|true");
     strcpy(username, message.parameter[0]);
-    //sprintf(currentFolder, "client/%s/", username);
     chdir(username);
     char cwd[1024];
     getcwd(cwd, sizeof(cwd));
@@ -193,14 +196,17 @@ char* loginServer(message message){
 
   }
   sentBytes= send(connSock,buff,1024,0);
+  mysql_free_result(result);
   return buff;
 }
 
-void* sendFileToClient(char* params){
+void* sendFileToClient(char* user_name, char* params){
   write(connSock, params,256);
   char* buffer = (char*)malloc(30*sizeof(char));
-  FILE *fp = fopen(params,"rb");
-  printf("%s\n", params);
+  char* path;
+  asprintf(&path, "..//%s/%s",user_name, params);
+  FILE *fp = fopen(path,"rb");
+  printf("%s\n", path);
   if(fp == NULL){
     printf("File open error\n");
     // strcpy(buffer,"openfile|false");
@@ -229,39 +235,146 @@ void* sendFileToClient(char* params){
 }
 
 void receiveFileUploadFromClient(char* params, int size){
-  int bytesReceived = 0;
-  char recvBuff[1024];
-  memset(recvBuff, '0', sizeof(recvBuff));
-  read(connSock, params, 256);
-  printf("File Name: %s\n",params);
-  printf("Receiving file...");
-
-  FILE *fp;
-  fp = fopen(params, "ab");
-  if(NULL == fp){
-    printf("Error opening file");
-    return 1;
+  char buffer[2048];
+  if (file_exist(params)){
+    strcpy(buffer, "upload|exist");
+    send(connSock, buffer, 2048, 0);
+    printf("%s\n", buffer);
   } else {
-        printf("Opened file");
-  }
-  // while((bytesReceived = read(connSock, recvBuff, 1024)) > 0){
-  // //   sz++;
-  //   fwrite(recvBuff, 1,bytesReceived,fp);
-  // }
-  long int sz = 1;
-  printf("%d\n", size);
-  while(sz < size){
-    bytesReceived = read(connSock, recvBuff, 1024);
-    sz+=1024;
-    printf("%d\n", sz);
-    fwrite(recvBuff, 1,bytesReceived,fp);
-  }
-  printf("%d\n", bytesReceived);
+    strcpy(buffer, "upload|start");
+    send(connSock, buffer, 2048, 0);
+    printf("%s\n", buffer);
+    int bytesReceived = 0;
+    char recvBuff[1024];
+    memset(recvBuff, '0', sizeof(recvBuff));
+    read(connSock, params, 256);
+    printf("File Name: %s\n",params);
+    printf("Receiving file...");
 
-  if(bytesReceived < 0){
-    printf("\n Send Error \n");
+    FILE *fp;
+    fp = fopen(params, "ab");
+    if(NULL == fp){
+      printf("Error opening file");
+      return 1;
+    } else {
+          printf("Opened file");
+    }
+    long int sz = 1;
+    printf("%d\n", size);
+    while(sz < size){
+      bytesReceived = read(connSock, recvBuff, 1024);
+      sz+=1024;
+      printf("%d\n", sz);
+      fwrite(recvBuff, 1,bytesReceived,fp);
+    }
+    printf("%d\n", bytesReceived);
+
+    if(bytesReceived < 0){
+      printf("\n Send Error \n");
+    }
+    addFile(1, username, params);
+    printf("\nFile OK....Completed\n");
   }
-  addFile(1, username, params);
-  printf("\nFile OK....Completed\n");
+}
+
+void updateShareType(char* filename, int shareType){
+  char* query;
+  asprintf(&query,"SELECT * FROM users WHERE username = '%s'", username);
+  mysql_query(con, query);
+  MYSQL_RES *result = mysql_store_result(con);
+  MYSQL_ROW row;
+  row = mysql_fetch_row(result);
+  asprintf(&query, "UPDATE files SET share_type = %d WHERE filename = '%s' AND user_id = %d",
+    shareType, filename, atoi(row[0]));
+  mysql_query(con, query);
+  mysql_free_result(result);
+}
+
+void updateFilename(char* oldname, char* newname){
+  char* query;
+  asprintf(&query,"SELECT * FROM users WHERE username = '%s'", username);
+  mysql_query(con, query);
+  MYSQL_RES *result = mysql_store_result(con);
+  MYSQL_ROW row;
+  row = mysql_fetch_row(result);
+  asprintf(&query, "UPDATE files SET filename = '%s' WHERE filename = '%s'",
+    newname, oldname);
+  mysql_query(con, query);
+  rename(oldname, newname);
+  mysql_free_result(result);
+}
+
+char* getAllFilelOfUser(){
+  char* listFile = "";
+  char* query;
+  asprintf(&query, "SELECT u.username, f.filename, f.share_type FROM users u JOIN files f WHERE u.username = '%s' AND u.user_id = f.user_id",
+    username);
+  mysql_query(con, query);
+  MYSQL_RES *result = mysql_store_result(con);
+  MYSQL_ROW row;
+  printf("Chay\n");
+  while((row = mysql_fetch_row(result))){
+    char* str;
+    asprintf(&str, " User: %s --- Filename: %s --- Share_type: %s \n",
+    row[0], row[1], row[2]);
+    asprintf(&listFile, "%s %s", listFile, str);
+  }
+  mysql_free_result(result);
+  return listFile;
+}
+
+void downloadFileShare(char* user_name, char* file_name){
+  char* query;
+  asprintf(&query, "SELECT u.username, f.filename FROM users u JOIN files f WHERE u.username = '%s' AND f.filename = '%s' AND f.share_type = 3 AND u.user_id = f.user_id",
+    user_name, file_name);
+  mysql_query(con, query);
+  MYSQL_RES *result = mysql_store_result(con);
+  MYSQL_ROW row;
+  char buffer[2048];
+  if((row = mysql_fetch_row(result)) != NULL){
+      struct stat st;
+      char* path;
+      asprintf(&path, "..//%s/%s", row[0], row[1]);
+      stat(path, &st);
+      int size = st.st_size;
+      char str[10];
+      sprintf(str, "%d", size);
+      char * send_file_message = create_message(26, "fname", str);
+      sentBytes= send(connSock,send_file_message,2048,0);
+      recv(connSock, buffer, 2048, 0);
+      if (strcmp(buffer, "26|download|ready|") == 0){
+        char buffer_start[2048];
+        strcpy(buffer_start, "26|download|start|");
+        sentBytes= send(connSock,buffer,2048,0);
+        sendFileToClient(row[0], row[1]);
+        printf("test download\n");
+      }
+  } else {
+    strcpy(buffer, "26|download|not_exist|");
+    send(connSock, buffer, 2048, 0);
+    printf("%s\n", buffer);
+  }
+}
+
+void showErrorMessage(MYSQL* con){
+   fprintf(stderr, "%s\n", mysql_error(con));
+   exit(1);
+}
+
+void connectMysql(){
+  con = mysql_init(NULL);
+
+  if (con == NULL)
+    showErrorMessage(con);
+
+  if (mysql_real_connect(con, "localhost", "root", "ngoan123",
+          "file_share", 0, NULL, 0) == NULL)
+    showErrorMessage(con);
+}
+
+int file_exist (char *filename)
+{
+  struct stat   buffer;
+  return (stat (filename, &buffer) == 0);
 }
 

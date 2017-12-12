@@ -11,7 +11,10 @@ void addUsers(char* name, char* password);
 void main_func();
 char* getPasswordByUsername( char* name);
 char* loginServer(message message);
-void* sendFileToClient(char* fname);
+void* sendFileToClient(char* username, char* fname);
+void showErrorMessage(MYSQL* con);
+void connectMysql();
+char* getAllFilelOfUser();
 
 int listenSock;
 int connSock;
@@ -22,5 +25,6 @@ char currentFile[256];
 char username[256]="";
 int err;
 pthread_t tid;
+MYSQL *con;
 
 
