@@ -106,7 +106,8 @@ void fileControl(){
         recv(sockfd, buff, 2048, 0);
         message mess_view;
         separate_message(buff, &mess_view);
-        if (strcmp(mess_view.parameter[0], "view") == 0){
+        if (mess_view.code == 22 &&
+            strcmp(mess_view.parameter[0], "view") == 0){
           printf("All file of user: \n");
           printf("%s\n", mess_view.parameter[1]);
         } else {
@@ -150,7 +151,8 @@ void fileControl(){
         recv(sockfd, buff, 2048, 0);
         message mess_view_rename;
         separate_message(buff, &mess_view_rename);
-        if (strcmp(mess_view_rename.parameter[0], "view") == 0){
+        if (mess_view_rename.code == 27 &&
+            strcmp(mess_view_rename.parameter[0], "view") == 0){
           printf("All file can rename in server: \n");
           printf("%s\n", mess_view_rename.parameter[1]);
         } else {
@@ -164,7 +166,8 @@ void fileControl(){
         recv(sockfd, buff, 2048, 0);
         message mess_view_download;
         separate_message(buff, &mess_view_download);
-        if (strcmp(mess_view_download.parameter[0], "view") == 0){
+        if (mess_view_download.code == 28 &&
+            strcmp(mess_view_download.parameter[0], "view") == 0){
           printf("All file can download in server: \n");
           printf("%s\n", mess_view_download.parameter[1]);
         } else {
@@ -186,16 +189,9 @@ void fileControl(){
         send(sockfd,rename_message_share,strlen(rename_message_share),0);
         printf("%s\n", rename_message_share);
         recv(sockfd,buff,2048,0);
-        if (strcmp(buff, "rename|newname") == 0){
-          // char * newname_message = create_message(29, "newname", newname);
-          // send(sockfd,newname_message,strlen(newname_message),0);
-          // recv(sockfd,buff,2048,0);
-          // if (strcmp(buff, "rename|true") == 0){
+        if (strcmp(buff, "rename|true") == 0){
             printf("Rename success!\n");
-          // } else {
-          //   printf("Rename failed!\n");
-          // }
-        } else {
+        } else if (strcmp(buff, "rename|false") == 0){
           printf("Rename failed!\n");
         }
         break;
@@ -273,20 +269,20 @@ int menuSelectShareType(){
 
 int menuFileControl(){
   int choice;
-  printf("\n\t*************************\n");
-  printf("\t*      FILE CONTROL     *\n");
-  printf("\t*************************\n");
-  printf("\t* 1. Upload             *\n");
-  printf("\t* 2. Download           *\n");
-  printf("\t* 3. View               *\n");
-  printf("\t* 4. Rename             *\n");
-  printf("\t* 5. Share              *\n");
-  printf("\t* 6. View Reaname       *\n");
-  printf("\t* 7. View Download      *\n");
-  printf("\t* 8. Rename share       *\n");
-  printf("\t* 9. Download share     *\n");
-  printf("\t* 10. Exit               *\n");
-  printf("\t*************************\n");
+  printf("\n\t**********************************\n");
+  printf("\t*           FILE CONTROL         *\n");
+  printf("\t**********************************\n");
+  printf("\t* 1. Upload                      *\n");
+  printf("\t* 2. Download                    *\n");
+  printf("\t* 3. View                        *\n");
+  printf("\t* 4. Rename                      *\n");
+  printf("\t* 5. Share                       *\n");
+  printf("\t* 6. View Renameable File        *\n");
+  printf("\t* 7. View Downloadable File      *\n");
+  printf("\t* 8. Rename Shared File          *\n");
+  printf("\t* 9. Download Shared File        *\n");
+  printf("\t* 10. Exit                       *\n");
+  printf("\t**********************************\n");
   printf("\t---> choice: ");
   scanf("%d%*c", &choice);
   while(choice!=1 && choice!=2 && choice!=3 && choice!=4 && choice!=5

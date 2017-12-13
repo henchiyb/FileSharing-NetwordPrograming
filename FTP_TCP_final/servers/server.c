@@ -111,9 +111,14 @@ void user_func(){
         send(connSock, view_all_message, strlen(view_all_message), 0);
         printf("View test: %s", view_all_message);
       } else if (mess.code == 24){
-        updateFilename(mess.parameter[0], mess.parameter[1]);
-        strcpy(buff,"rename|true");
-        send(connSock, buff, 2048, 0);
+          if (file_exist(mess.parameter[0]) && !file_exist(mess.parameter[1])){
+            updateFilename(mess.parameter[0], mess.parameter[1]);
+            strcpy(buff,"rename|true");
+            send(connSock, buff, 2048, 0);
+          } else {
+            strcpy(buff,"rename|false");
+            send(connSock, buff, 2048, 0);
+          }
       } else if (mess.code == 25){
         updateShareType(mess.parameter[0], atoi(mess.parameter[1]));
         strcpy(buff,"share|true");
@@ -137,16 +142,19 @@ void user_func(){
         char *token;
         char *token1;
         char *search = " ";
-        // printf("%s\n", mess.parameter[1]);
-        // Token will point to "SEVERAL".
         token = strtok(mess.parameter[1], search);
         // Token will point to "WORDS".
         token1 = strtok(NULL, search);
         printf("token %s %s\n", token, token1);
-        updateFilenameShare(mess.parameter[0], token, token1);
+        if (file_exist(token) && !file_exist(token1)){
+          updateFilenameShare(mess.parameter[0], token, token1);
+          strcpy(buff,"rename|true");
+          send(connSock, buff, 2048, 0);
+        } else {
+          strcpy(buff,"rename|false");
+          send(connSock, buff, 2048, 0);
+        }
 
-        strcpy(buff,"rename|newname");
-        send(connSock, buff, 2048, 0);
       }
       break;
   }
@@ -338,7 +346,7 @@ void updateFilenameShare(char* user_name, char* oldname, char* newname){
 }
 
 char* getAllFilelOfUser(){
-  char* listFile = "";
+  char* listFile = " ";
   char* query;
   asprintf(&query, "SELECT u.username, f.filename, f.share_type FROM users u JOIN files f WHERE u.username = '%s' AND u.user_id = f.user_id",
     username);
@@ -357,7 +365,7 @@ char* getAllFilelOfUser(){
 }
 
 char* getFileByShareType(int shareType){
-  char* listFile = "";
+  char* listFile = " ";
   char* query;
   asprintf(&query, "SELECT u.username, f.filename, f.share_type FROM users u JOIN files f WHERE f.share_type = %d AND u.user_id = f.user_id",
     shareType);
