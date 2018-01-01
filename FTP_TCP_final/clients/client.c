@@ -1,12 +1,12 @@
 #include "client_lib.h"
 #define PORT 5000
 
-void main(){
+void main(int argc, char* argv[1]){
   char temp[256];
   sockfd = socket(AF_INET,SOCK_STREAM,0);
   serverAddr.sin_family = AF_INET;
   serverAddr.sin_port = htons(PORT);
-  strcpy(temp,"127.0.0.1");
+  strcpy(temp,argv[1]);
   if((inet_aton(temp,&serverAddr.sin_addr)==0)){
     printf("ERROR: error in inet_aton()\n");
     return;

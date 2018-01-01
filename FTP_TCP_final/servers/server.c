@@ -47,19 +47,21 @@ void main_func(){
     char buff[2048];
     char cmt[30];
     while((reciveBytes = recv(connSock,buff,2048,0))){
-      buff[reciveBytes]='\0';
-      message mess;
-      separate_message(buff,&mess);
-      if(mess.code == 2){
-        strcpy(cmt,loginServer(mess));
-      }
-      else if(mess.code == 1){
-        signupServer(mess);
-      }
-      if(strcmp(cmt,"login|true")==0){
-      strcpy(username,mess.parameter[0]);
-      printf("Client %s logined!\n",username);
-      break;
+      if (buff != NULL){
+        buff[reciveBytes]='\0';
+        message mess;
+        separate_message(buff,&mess);
+        if(mess.code == 2){
+          strcpy(cmt,loginServer(mess));
+        }
+        else if(mess.code == 1){
+          signupServer(mess);
+        }
+        if(strcmp(cmt,"login|true")==0){
+        strcpy(username,mess.parameter[0]);
+        printf("Client %s logined!\n",username);
+        break;
+        }
       }
     }
     user_func();
@@ -68,13 +70,13 @@ void main_func(){
 void user_func(){
   char* fname;
   while((reciveBytes = recv(connSock,buff,2048,0))){
+    if (buff != NULL){
       buff[reciveBytes]='\0';
       char* str;
       message mess;
       separate_message(buff,&mess);
       if(mess.code == 23){
         if(strcmp(mess.parameter[0], "fname") == 0){
-          printf("Alo\n");
           struct stat st;
           fname = mess.parameter[1];
           char buffer[2048];
@@ -85,7 +87,7 @@ void user_func(){
           } else {
             stat(fname, &st);
             int size = st.st_size;
-            printf("test size%d\n", size);
+            printf("Size: %d\n", size);
             char str[10];
             sprintf(str, "%d", size);
             char * send_file_message = create_message(23, mess.parameter[0], str);
@@ -157,6 +159,7 @@ void user_func(){
 
       }
       break;
+    }
   }
   user_func();
 }
