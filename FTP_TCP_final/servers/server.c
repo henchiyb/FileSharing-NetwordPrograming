@@ -108,7 +108,6 @@ void user_func(){
         receiveFileUploadFromClient(mess.parameter[0], atoi(mess.parameter[1]));
       } else if (mess.code == 22){
         char* listFile = getAllFilelOfUser();
-        printf("%s\n", listFile);
         char* view_all_message = create_message(22, "view", listFile);
         send(connSock, view_all_message, strlen(view_all_message), 0);
         printf("View test: %s", view_all_message);
@@ -130,13 +129,11 @@ void user_func(){
         printf("Share down: %s - %s\n", mess.parameter[0], mess.parameter[1]);
       } else if (mess.code == 27){
         char* listFile = getFileByShareType(2);
-        printf("%s\n", listFile);
         char* view_rename = create_message(27, "view", listFile);
         send(connSock, view_rename, strlen(view_rename), 0);
         printf("View test: %s", view_rename);
       } else if (mess.code == 28){
         char* listFile = getFileByShareType(3);
-        printf("%s\n", listFile);
         char* view_download = create_message(28, "view", listFile);
         send(connSock, view_download, strlen(view_download), 0);
         printf("View test: %s", view_download);
