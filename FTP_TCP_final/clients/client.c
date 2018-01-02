@@ -1,5 +1,4 @@
 #include "client_lib.h"
-#define PORT 5000
 
 void main(int argc, char* argv[1]){
   char temp[256];
@@ -67,13 +66,13 @@ void fileControl(){
           int size = st.st_size;
           char str[10];
           sprintf(str, "%d", size);
-          char * upload_message = create_message(21,fname,str);
+          char * upload_message = create_message(UPLOAD,fname,str);
           send(sockfd,upload_message,strlen(upload_message),0);
           char * buffer[2048];
           recv(sockfd, buffer, 2048, 0);
-          if (strcmp(buffer, "upload|exist") == 0)
+          if (strcmp(buffer, "210|upload|exist") == 0)
             printf("File exist! please rename\n");
-          else if (strcmp(buffer, "upload|start") == 0)
+          else if (strcmp(buffer, "210|upload|start") == 0)
             uploadFileToServer(fname);
         }
         break;
@@ -81,32 +80,33 @@ void fileControl(){
         printf("\nFilename to download: ");
         gets(fname);
         char * buffer[2048];
-        char * download_message = create_message(23,"fname",fname);
+        char * download_message = create_message(DOWNLOAD,"fname",fname);
         send(sockfd,download_message,strlen(download_message),0);
         recv(sockfd, buffer ,2048, 0);
         message mess;
         separate_message(buffer, &mess);
         if (strcmp(mess.parameter[0], "fname") == 0){
           int size = atoi(mess.parameter[1]);
-          char * download_start = create_message(23,"download","ready");
+          char * download_start = create_message(DOWNLOAD,"download","ready");
           send(sockfd,download_start,strlen(download_start),0);
           recv(sockfd, buffer ,2048, 0);
-          if (strcmp(buffer, "23|download|start|")){
+          printf("%s\n", buffer);
+          if (strcmp(buffer, "220|download|start|") == 0){
             printf("Download start\n");
             receiveFileFromServer(fname, size);
           }
-        } else if (strcmp(buffer, "23|download|not_exist|") == 0){
+        } else if (strcmp(mess.parameter[1], "not_exist") == 0){
           printf("File download not exist\n");
         }
         break;
       case 3:
         printf("View\n");
-        char * view_ready = create_message(22,"view","ready");
+        char * view_ready = create_message(VIEW,"view","ready");
         send(sockfd,view_ready,strlen(view_ready),0);
         recv(sockfd, buff, 2048, 0);
         message mess_view;
         separate_message(buff, &mess_view);
-        if (mess_view.code == 22 &&
+        if (mess_view.code == VIEW_SV &&
             strcmp(mess_view.parameter[0], "view") == 0){
           printf("All file of user: \n");
           printf("%s\n", mess_view.parameter[1]);
@@ -120,10 +120,10 @@ void fileControl(){
         char newname[2048];
         printf("\nNew name: ");
         gets(newname);
-        char * rename_message = create_message(24, fname, newname);
+        char * rename_message = create_message(RENAME, fname, newname);
         send(sockfd,rename_message,strlen(rename_message),0);
         recv(sockfd,buff,2048,0);
-        if (strcmp(buff, "rename|true") == 0){
+        if (strcmp(buff, "240|rename|true") == 0){
           printf("Rename success!\n");
         } else {
           printf("Rename failed!\n");
@@ -135,10 +135,10 @@ void fileControl(){
         int shareType = menuSelectShareType();
         char str[1];
         sprintf(str, "%d", shareType);
-        char * change_share_message = create_message(25, fname, str);
+        char * change_share_message = create_message(SHARE, fname, str);
         send(sockfd,change_share_message,strlen(change_share_message),0);
         recv(sockfd,buff,2048,0);
-        if (strcmp(buff, "share|true") == 0){
+        if (strcmp(buff, "250|share|true") == 0){
           printf("Share success!\n");
         } else {
           printf("Share failed!\n");
@@ -146,12 +146,12 @@ void fileControl(){
         break;
       case 6:
         printf("View rename\n");
-        char * view_rename_ready = create_message(27,"view","ready");
+        char * view_rename_ready = create_message(VIEW_RENAME,"view","ready");
         send(sockfd,view_rename_ready,strlen(view_rename_ready),0);
         recv(sockfd, buff, 2048, 0);
         message mess_view_rename;
         separate_message(buff, &mess_view_rename);
-        if (mess_view_rename.code == 27 &&
+        if (mess_view_rename.code == VIEW_RENAME_SV &&
             strcmp(mess_view_rename.parameter[0], "view") == 0){
           printf("All file can rename in server: \n");
           printf("%s\n", mess_view_rename.parameter[1]);
@@ -161,12 +161,12 @@ void fileControl(){
         break;
       case 7:
         printf("View download\n");
-        char * view_download_ready = create_message(28,"view","ready");
+        char * view_download_ready = create_message(VIEW_DOWNLOAD,"view","ready");
         send(sockfd,view_download_ready,strlen(view_download_ready),0);
         recv(sockfd, buff, 2048, 0);
         message mess_view_download;
         separate_message(buff, &mess_view_download);
-        if (mess_view_download.code == 28 &&
+        if (mess_view_download.code == VIEW_DOWNLOAD_SV &&
             strcmp(mess_view_download.parameter[0], "view") == 0){
           printf("All file can download in server: \n");
           printf("%s\n", mess_view_download.parameter[1]);
@@ -185,13 +185,13 @@ void fileControl(){
         gets(newnames);
         strcat(fname, " ");
         strcat(fname, newnames);
-        char * rename_message_share = create_message(29, user_name, fname);
+        char * rename_message_share = create_message(RENAME_SHARE, user_name, fname);
         send(sockfd,rename_message_share,strlen(rename_message_share),0);
         printf("%s\n", rename_message_share);
         recv(sockfd,buff,2048,0);
-        if (strcmp(buff, "rename|true") == 0){
+        if (strcmp(buff, "290|rename|true") == 0){
             printf("Rename success!\n");
-        } else if (strcmp(buff, "rename|false") == 0){
+        } else if (strcmp(buff, "290|rename|false") == 0){
           printf("Rename failed!\n");
         }
         break;
@@ -201,7 +201,7 @@ void fileControl(){
         char user_has_file[2048];
         printf("\nUser has file: ");
         gets(user_has_file);
-        char * download_share_message = create_message(26,user_has_file,fname);
+        char * download_share_message = create_message(DOWNLOAD_SHARE,user_has_file,fname);
         send(sockfd, download_share_message, strlen(download_share_message),0);
         char buff_share[2048];
         recv(sockfd, buff_share ,2048, 0);
@@ -209,14 +209,14 @@ void fileControl(){
         separate_message(buff_share, &mess_share);
         if (strcmp(mess_share.parameter[0], "fname") == 0){
           int size = atoi(mess_share.parameter[1]);
-          char * download_start = create_message(26,"download","ready");
+          char * download_start = create_message(DOWNLOAD_SHARE,"download","ready");
           send(sockfd,download_start,strlen(download_start),0);
           recv(sockfd, buffer ,2048, 0);
-          if (strcmp(buffer, "26|download|start|")){
+          if (strcmp(buffer, "280|download|start|")){
             printf("Download start\n");
             receiveFileFromServer(fname, size);
           }
-        } else if (strcmp(buffer, "26|download|not_exist|") == 0){
+        } else if (strcmp(buffer, "280|download|not_exist|") == 0){
           printf("File download not exist\n");
         }
         break;

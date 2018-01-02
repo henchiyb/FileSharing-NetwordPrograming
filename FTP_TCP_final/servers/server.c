@@ -46,7 +46,7 @@ void main(){
 void main_func(){
     char buff[2048];
     char cmt[30];
-    while((reciveBytes = recv(connSock,buff,2048,0))){
+    while((reciveBytes = recv(connSock,buff,2048,0)) > 0){
       if (buff != NULL){
         buff[reciveBytes]='\0';
         message mess;
@@ -69,19 +69,19 @@ void main_func(){
 
 void user_func(){
   char* fname;
-  while((reciveBytes = recv(connSock,buff,2048,0))){
+  while((reciveBytes = recv(connSock,buff,2048,0)) > 0){
     if (buff != NULL){
       buff[reciveBytes]='\0';
       char* str;
       message mess;
       separate_message(buff,&mess);
-      if(mess.code == 23){
+      if(mess.code == DOWNLOAD){
         if(strcmp(mess.parameter[0], "fname") == 0){
           struct stat st;
           fname = mess.parameter[1];
           char buffer[2048];
           if (!file_exist(fname)){
-            strcpy(buffer, "23|download|not_exist|");
+            strcpy(buffer, "220|download|not_exist|");
             send(connSock, buffer, 2048, 0);
             printf("%s\n", buffer);
           } else {
@@ -90,54 +90,52 @@ void user_func(){
             printf("Size: %d\n", size);
             char str[10];
             sprintf(str, "%d", size);
-            char * send_file_message = create_message(23, mess.parameter[0], str);
+            char * send_file_message = create_message(DOWNLOAD_SV, mess.parameter[0], str);
             printf("%s\n", send_file_message);
             sentBytes= send(connSock,send_file_message,2048,0);
             recv(connSock, buffer, 2048, 0);
-            if (strcmp(buffer, "23|download|ready|") == 0){
+            if (strcmp(buffer, "22|download|ready|") == 0){
               char buffer_start[2048];
-              strcpy(buffer_start, "23|download|start|");
-              sentBytes= send(connSock,buffer,2048,0);
-              printf("Test down: %s\n", fname);
+              strcpy(buffer_start, "220|download|start|");
+              sentBytes= send(connSock,buffer_start,2048,0);
               sendFileToClient(username, fname);
-              printf("test download\n");
             }
           }
         }
-      } else if (mess.code == 21){
+      } else if (mess.code == UPLOAD){
         receiveFileUploadFromClient(mess.parameter[0], atoi(mess.parameter[1]));
-      } else if (mess.code == 22){
+      } else if (mess.code == VIEW){
         char* listFile = getAllFilelOfUser();
-        char* view_all_message = create_message(22, "view", listFile);
+        char* view_all_message = create_message(VIEW_SV, "view", listFile);
         send(connSock, view_all_message, strlen(view_all_message), 0);
         printf("View test: %s", view_all_message);
-      } else if (mess.code == 24){
+      } else if (mess.code == RENAME){
           if (file_exist(mess.parameter[0]) && !file_exist(mess.parameter[1])){
             updateFilename(mess.parameter[0], mess.parameter[1]);
-            strcpy(buff,"rename|true");
+            strcpy(buff,"240|rename|true");
             send(connSock, buff, 2048, 0);
           } else {
-            strcpy(buff,"rename|false");
+            strcpy(buff,"240|rename|false");
             send(connSock, buff, 2048, 0);
           }
-      } else if (mess.code == 25){
+      } else if (mess.code == SHARE){
         updateShareType(mess.parameter[0], atoi(mess.parameter[1]));
-        strcpy(buff,"share|true");
+        strcpy(buff,"250|share|true");
         send(connSock, buff, 2048, 0);
-      } else if (mess.code == 26){
+      } else if (mess.code == DOWNLOAD_SHARE){
         downloadFileShare(mess.parameter[0], mess.parameter[1]);
         printf("Share down: %s - %s\n", mess.parameter[0], mess.parameter[1]);
-      } else if (mess.code == 27){
+      } else if (mess.code == VIEW_RENAME){
         char* listFile = getFileByShareType(2);
-        char* view_rename = create_message(27, "view", listFile);
+        char* view_rename = create_message(VIEW_RENAME_SV, "view", listFile);
         send(connSock, view_rename, strlen(view_rename), 0);
         printf("View test: %s", view_rename);
-      } else if (mess.code == 28){
+      } else if (mess.code == VIEW_DOWNLOAD){
         char* listFile = getFileByShareType(3);
-        char* view_download = create_message(28, "view", listFile);
+        char* view_download = create_message(VIEW_DOWNLOAD_SV, "view", listFile);
         send(connSock, view_download, strlen(view_download), 0);
         printf("View test: %s", view_download);
-      } else if (mess.code == 29){
+      } else if (mess.code == RENAME_SHARE){
         char *token;
         char *token1;
         char *search = " ";
@@ -147,10 +145,10 @@ void user_func(){
         printf("token %s %s\n", token, token1);
         if (file_exist(token) && !file_exist(token1)){
           updateFilenameShare(mess.parameter[0], token, token1);
-          strcpy(buff,"rename|true");
+          strcpy(buff,"290|rename|true");
           send(connSock, buff, 2048, 0);
         } else {
-          strcpy(buff,"rename|false");
+          strcpy(buff,"290|rename|false");
           send(connSock, buff, 2048, 0);
         }
 
@@ -247,9 +245,10 @@ void* sendFileToClient(char* user_name, char* params){
     // sentBytes= send(connSock,buffer,1024,0);
     return 0;
   } else {
-    printf("OPEN\n");
+    printf("FILE OPEN\n");
   }
-    while(1){
+
+  while(1){
       /* First read file in chunks of 256 bytes */
       unsigned char buff[1024]={0};
       int nread = fread(buff, 1, 1024, fp);
@@ -265,17 +264,17 @@ void* sendFileToClient(char* user_name, char* params){
           printf("Error reading\n");
         break;
       }
-    }
+  }
 }
 
 void receiveFileUploadFromClient(char* params, int size){
   char buffer[2048];
   if (file_exist(params)){
-    strcpy(buffer, "upload|exist");
+    strcpy(buffer, "210|upload|exist");
     send(connSock, buffer, 2048, 0);
     printf("%s\n", buffer);
   } else {
-    strcpy(buffer, "upload|start");
+    strcpy(buffer, "210|upload|start");
     send(connSock, buffer, 2048, 0);
     printf("%s\n", buffer);
     int bytesReceived = 0;
@@ -398,18 +397,18 @@ void downloadFileShare(char* user_name, char* file_name){
       int size = st.st_size;
       char str[10];
       sprintf(str, "%d", size);
-      char * send_file_message = create_message(26, "fname", str);
+      char * send_file_message = create_message(DOWNLOAD_SHARE_SV, "fname", str);
       sentBytes= send(connSock,send_file_message,2048,0);
       recv(connSock, buffer, 2048, 0);
-      if (strcmp(buffer, "26|download|ready|") == 0){
+      if (strcmp(buffer, "28|download|ready|") == 0){
         char buffer_start[2048];
-        strcpy(buffer_start, "26|download|start|");
+        strcpy(buffer_start, "280|download|start|");
         sentBytes= send(connSock,buffer,2048,0);
         sendFileToClient(row[0], row[1]);
         printf("test download\n");
       }
   } else {
-    strcpy(buffer, "26|download|not_exist|");
+    strcpy(buffer, "280|download|not_exist|");
     send(connSock, buffer, 2048, 0);
     printf("%s\n", buffer);
   }
